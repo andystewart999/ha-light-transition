@@ -1,0 +1,693 @@
+{
+	"id": "3c606aa99b608ccb",
+	"type": "subflow",
+	"name": "light transition",
+        "info": "This node provides a light transition service within Home Assistant for lights that don't\r\nhave a built-in `transition` capability.  It does this by sending multiple `light.turn_on` \r\nmessages in a loop through the second output, calculating the appropiate brightness as it goes.\r\n\r\nOnce the transition is complete or is cancelled, the original message will be sent through \r\nthe first output.\r\n\r\nWhen adding this node to your flow you must also add an `api_call_service` node to the second output, with the specific\r\nconfiguration detailed below.\r\n\r\n# Input Message to start a transition\r\n\r\nThe node expects an input `msg` which contains the following to start a light transition:\r\n\r\n+ `msg.topic` specifies the target light or light group - this is the only mandated property\r\n+ `msg.brightness_start` and `msg.brightness_end` integers, between 0 and 255 - if not provided, 0 and 255 are \r\nassumed\r\n+ `msg.transition_time` tells the node how long to take to make the transition between the defined brightnesses,\r\nin seconds - if not provided, it defaults to 60\r\n\r\nNote: if `msg.brightness_end` is 0 the target light(s) will have `light.turn_off` sent to them at the end of the transition\r\n\r\n# Other control messages\r\n\r\nThere are also two other control messages which the  node will accept:\r\n\r\n+ a `msg.payload` of `cancel` will immediately stop the transition wherever it is\r\n+ a `msg.payload` of `finish` will immediately set the target light(s) to the `msg.brightness_end` value, effectively jumping to the end of the transition\r\n\r\n# Home Assistant note\r\nThe original release of this node contained the Home Assistant `api_call_service` node within it.  This meant that it didn't work for anyone other than me\r\nas Node Red doesn't appear to support importing your own Home Assistant configuration node when adding a subflow-derived module to your flows.\r\n\r\nThat is the reason why this node requires you to attach an `api_call_service` node to the second output with this specific configuration:\r\n\r\n+ domain: `{{call_service_domain}}`\r\n+ service: `{{call_service_service}}`\r\n+ entityId: `{{call_service_entity}}`\r\n+ data: `call_service_data`\r\n+ dataType: `jsonata`",
+	"category": "",
+	"in": [
+		{
+			"x": 150,
+			"y": 200,
+			"wires": [
+				{
+					"id": "7009bb5fdd946224"
+				}
+			]
+		}
+	],
+	"out": [
+		{
+			"x": 2390,
+			"y": 220,
+			"wires": [
+				{
+					"id": "beb5d0af505ecc62",
+					"port": 0
+				}
+			]
+		},
+		{
+			"x": 1960,
+			"y": 380,
+			"wires": [
+				{
+					"id": "14910685154a39e9",
+					"port": 0
+				},
+				{
+					"id": "86687bcd4c16c646",
+					"port": 0
+				}
+			]
+		}
+	],
+	"env": [],
+	"meta": {
+		"module": "node-red-contrib-ha-light-transition",
+		"type": "ha-light-transition",
+		"version": "0.2.6",
+		"author": "Andy Stewart <andy.stewart@live.com>",
+		"desc": "Light transition node for Home Assistant",
+		"keywords": "node-red,light,transition,home-assistant,ha",
+		"license": "Apache-2.0"
+	},
+	"color": "#41BDF5",
+	"outputLabels": [
+		"Original msg",
+		"Add 'Call Service' node here"
+	],
+	"icon": "font-awesome/fa-lightbulb-o",
+	"status": {
+		"x": 2340,
+		"y": 300,
+		"wires": [
+			{
+				"id": "3d6661effbfe9da6",
+				"port": 0
+			}
+		]
+	},
+	"flow": [
+    {
+        "id": "332c2ae42ef036be",
+        "type": "function",
+        "z": "3c606aa99b608ccb",
+        "name": "Pre-loop checks",
+        "func": "// Require properties\n// msg.topic                The target light\n// msg.brightness           The target brightness_pct\n// msg.current_brightness   The current brightness_pct\n// msg.transition           The required transition time\n\n// Check for defaults\nif (msg.hasOwnProperty(\"transition_time\") === false) msg.transition_time = 60;\nif (msg.hasOwnProperty(\"brightness_start\") === false) msg.brightness_start = 1;\nif (msg.hasOwnProperty(\"brightness_end\") === false) msg.brightness_end = 255;\n\nif (isNaN(msg.transition_time)) {\n    msg.transition_time = 60\n}\nmsg.transition_time = Number(msg.transition_time)\n\nif (isNaN(msg.brightness_start)) {\n    msg.brightness_start = 1\n}\nmsg.brightness_start = Number(msg.brightness_start)\n\nif (isNaN(msg.brightness_end)) {\n    msg.brightness_end = 255\n}\nmsg.brightness_end = Number(msg.brightness_end)\n\n//We need these for the external 'call service' node\nmsg.call_service_domain = \"light\"\nmsg.call_service_service = \"turn_on\"\nmsg.call_service_entity = msg.topic\n\n// Work out the difference between the current and desired brightess, step count and steps per second\nmsg.brightness_delta = parseInt(Math.abs(msg.brightness_start - msg.brightness_end))\n\nif (msg.brightness_delta < msg.transition_time) {\n    // Force the interval to be greater than the default one second\n    msg.transition_interval = parseInt(msg.transition_time / msg.brightness_delta) * 1000\n    msg.transition_time= msg.transition_time / (msg.transition_interval / 1000)\n} else {\n    msg.transition_interval = 1000\n}\n\n// Save some information for the cancel/finish messages\nflow.set(\"transition_status\", \"running\")\n\nvar dt = new Date();\nmsg.transition_start_time = dt.toLocaleString();\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 220,
+        "wires": [
+            [
+                "2e74448752fdd539"
+            ]
+        ]
+    },
+    {
+        "id": "4682fafb0edbaaa4",
+        "type": "switch",
+        "z": "3c606aa99b608ccb",
+        "name": "Determine final state",
+        "property": "brightness_end",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "0",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1060,
+        "y": 220,
+        "wires": [
+            [
+                "3d4a83c78b62baa0"
+            ],
+            [
+                "5bfeefda7babbfbd"
+            ]
+        ]
+    },
+    {
+        "id": "ec26ba20de7e9b9f",
+        "type": "function",
+        "z": "3c606aa99b608ccb",
+        "name": "Calculate new brightness",
+        "func": "// How far through the loop are we?\nvar pctComplete = (msg.transition_counter / msg.transition_time) * 100\n\n// Work out what the brightness needs to be right now\nvar increment = (msg.brightness_delta * pctComplete) / 100\n\nif (msg.brightness_start < msg.brightness_end) {\n    // Brightness is increasing\n    msg.new_brightness = parseInt(msg.brightness_start + increment)\n} else {\n    // Brightness is decreasing\n    msg.new_brightness = parseInt(msg.brightness_start - increment)\n}\nmsg.call_service_data = { \"brightness\": msg.new_brightness }\n\n// Set the appropriate delay\nmsg.delay = msg.transition_interval\n\n// Update the status\nnode.status({\n    text: 'Progress: ' + Math.round(pctComplete) + '%',\n    shape: 'dot',\n    fill: 'blue'\n});\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 340,
+        "wires": [
+            [
+                "2a1a722a3c41eff1",
+                "1271892a8d81b539"
+            ]
+        ]
+    },
+    {
+        "id": "493fb60b07e6a652",
+        "type": "delay",
+        "z": "3c606aa99b608ccb",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "500",
+        "timeoutUnits": "milliseconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1910,
+        "y": 220,
+        "wires": [
+            [
+                "beb5d0af505ecc62"
+            ]
+        ]
+    },
+    {
+        "id": "7009bb5fdd946224",
+        "type": "switch",
+        "z": "3c606aa99b608ccb",
+        "name": "Is this a control message?",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "cancel",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "finish",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 340,
+        "y": 200,
+        "wires": [
+            [
+                "4520da7592e5f09d"
+            ],
+            [
+                "4520da7592e5f09d"
+            ],
+            [
+                "332c2ae42ef036be"
+            ]
+        ]
+    },
+    {
+        "id": "87313dead72c678d",
+        "type": "change",
+        "z": "3c606aa99b608ccb",
+        "name": "Cancelling",
+        "rules": [
+            {
+                "t": "set",
+                "p": "transition_status",
+                "pt": "flow",
+                "to": "cancel",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1200,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "503749a134264ff0",
+        "type": "change",
+        "z": "3c606aa99b608ccb",
+        "name": "Finish now",
+        "rules": [
+            {
+                "t": "set",
+                "p": "transition_status",
+                "pt": "flow",
+                "to": "finish",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1200,
+        "y": 80,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "b42994f2c4692861",
+        "type": "switch",
+        "z": "3c606aa99b608ccb",
+        "name": "Check for control messages",
+        "property": "transition_status",
+        "propertyType": "flow",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "finish",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "cancel",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 1060,
+        "y": 340,
+        "wires": [
+            [
+                "4682fafb0edbaaa4"
+            ],
+            [
+                "25735abaddd03f3d"
+            ],
+            [
+                "13c66610c494b32c"
+            ]
+        ]
+    },
+    {
+        "id": "4520da7592e5f09d",
+        "type": "switch",
+        "z": "3c606aa99b608ccb",
+        "name": "Is a transition currently running?",
+        "property": "transition_status",
+        "propertyType": "flow",
+        "rules": [
+            {
+                "t": "nempty"
+            },
+            {
+                "t": "empty"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 660,
+        "y": 100,
+        "wires": [
+            [
+                "d96cdb52eb9cb19e"
+            ],
+            [
+                "5ce1c12e935ff24b"
+            ]
+        ]
+    },
+    {
+        "id": "d96cdb52eb9cb19e",
+        "type": "switch",
+        "z": "3c606aa99b608ccb",
+        "name": "Process control message",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "cancel",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "finish",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 950,
+        "y": 60,
+        "wires": [
+            [
+                "87313dead72c678d"
+            ],
+            [
+                "503749a134264ff0"
+            ]
+        ]
+    },
+    {
+        "id": "beb5d0af505ecc62",
+        "type": "change",
+        "z": "3c606aa99b608ccb",
+        "name": "Tidy up internal messages",
+        "rules": [
+            {
+                "t": "delete",
+                "p": "brightness_delta",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "transition_interval",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "transition_start_time",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "new_brightness",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "transition_counter",
+                "pt": "msg"
+            },
+            {
+                "t": "set",
+                "p": "transition_status",
+                "pt": "flow",
+                "to": "",
+                "tot": "str"
+            },
+            {
+                "t": "delete",
+                "p": "call_service_domain",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "call_service_service",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "call_service_entity",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "call_service_data",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "delay",
+                "pt": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2150,
+        "y": 220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "2a1a722a3c41eff1",
+        "type": "delay",
+        "z": "3c606aa99b608ccb",
+        "name": "Variable delay",
+        "pauseType": "delayv",
+        "timeout": "9999",
+        "timeoutUnits": "milliseconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 800,
+        "y": 340,
+        "wires": [
+            [
+                "b42994f2c4692861"
+            ]
+        ]
+    },
+    {
+        "id": "2e74448752fdd539",
+        "type": "function",
+        "z": "3c606aa99b608ccb",
+        "name": "Loop!",
+        "func": "// Check for defaults\nif (msg.hasOwnProperty(\"transition_counter\") === false) {\n    msg.transition_counter = 0;\n} else {\n    msg.transition_counter++;\n}\n\nif (msg.transition_counter > msg.transition_time) {\n    // We're finished - break out and send this message to the first output\n    return [msg, null];\n} else {\n    return [null, msg];\n}\n",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 790,
+        "y": 220,
+        "wires": [
+            [
+                "4682fafb0edbaaa4"
+            ],
+            [
+                "ec26ba20de7e9b9f"
+            ]
+        ],
+        "outputLabels": [
+            "Default output",
+            "Error output"
+        ]
+    },
+    {
+        "id": "13c66610c494b32c",
+        "type": "link out",
+        "z": "3c606aa99b608ccb",
+        "name": "link out 9",
+        "mode": "link",
+        "links": [
+            "cffe6851e47ef460"
+        ],
+        "x": 1235,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "cffe6851e47ef460",
+        "type": "link in",
+        "z": "3c606aa99b608ccb",
+        "name": "link in 9",
+        "links": [
+            "13c66610c494b32c"
+        ],
+        "x": 715,
+        "y": 260,
+        "wires": [
+            [
+                "2e74448752fdd539"
+            ]
+        ]
+    },
+    {
+        "id": "3d4a83c78b62baa0",
+        "type": "change",
+        "z": "3c606aa99b608ccb",
+        "name": "Turn the light off",
+        "rules": [
+            {
+                "t": "set",
+                "p": "call_service_service",
+                "pt": "msg",
+                "to": "turn_off",
+                "tot": "str"
+            },
+            {
+                "t": "set",
+                "p": "call_service_data",
+                "pt": "msg",
+                "to": "",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1380,
+        "y": 200,
+        "wires": [
+            [
+                "86687bcd4c16c646"
+            ]
+        ]
+    },
+    {
+        "id": "5bfeefda7babbfbd",
+        "type": "change",
+        "z": "3c606aa99b608ccb",
+        "name": "Force end-state brightness",
+        "rules": [
+            {
+                "t": "set",
+                "p": "call_service_data",
+                "pt": "msg",
+                "to": "{\"brightness\": msg.brightness_end}",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1420,
+        "y": 240,
+        "wires": [
+            [
+                "86687bcd4c16c646"
+            ]
+        ]
+    },
+    {
+        "id": "14910685154a39e9",
+        "type": "link in",
+        "z": "3c606aa99b608ccb",
+        "name": "link in 10",
+        "links": [
+            "f56609c9c6a4bd48",
+            "0aea210d73b7a840",
+            "1271892a8d81b539"
+        ],
+        "x": 1765,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "1271892a8d81b539",
+        "type": "link out",
+        "z": "3c606aa99b608ccb",
+        "name": "link out 12",
+        "mode": "link",
+        "links": [
+            "14910685154a39e9"
+        ],
+        "x": 715,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "3d6661effbfe9da6",
+        "type": "status",
+        "z": "3c606aa99b608ccb",
+        "name": "Status updates",
+        "scope": [
+            "ec26ba20de7e9b9f",
+            "25735abaddd03f3d",
+            "5ce1c12e935ff24b",
+            "86687bcd4c16c646"
+        ],
+        "x": 2180,
+        "y": 300,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "25735abaddd03f3d",
+        "type": "function",
+        "z": "3c606aa99b608ccb",
+        "name": "Immediate cancel",
+        "func": "node.status({\n    text: 'Transition cancelled',\n    shape: 'dot',\n    fill: 'red'\n});\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1570,
+        "y": 340,
+        "wires": [
+            [
+                "493fb60b07e6a652"
+            ]
+        ],
+        "outputLabels": [
+            "Status update",
+            "Debug message"
+        ]
+    },
+    {
+        "id": "5ce1c12e935ff24b",
+        "type": "function",
+        "z": "3c606aa99b608ccb",
+        "name": "Unexpected control message",
+        "func": "node.status({\n    text: 'Unexpected control message',\n    shape: 'dot',\n    fill: 'red'\n});\n\nreturn msg;\n",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 960,
+        "y": 120,
+        "wires": [
+            [],
+            []
+        ],
+        "outputLabels": [
+            "Status update",
+            "Debug message"
+        ]
+    },
+    {
+        "id": "86687bcd4c16c646",
+        "type": "function",
+        "z": "3c606aa99b608ccb",
+        "name": "Transition complete",
+        "func": "node.status({\n    text: 'Transition complete',\n    shape: 'dot',\n    fill: 'green'\n});\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1690,
+        "y": 220,
+        "wires": [
+            [
+                "493fb60b07e6a652"
+            ]
+        ],
+        "outputLabels": [
+            "Status update"
+        ]
+    }
+  ]
+}
+
