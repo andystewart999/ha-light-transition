@@ -1,1 +1,177 @@
-[{"id":"0e4c90221aaaf5a9","type":"inject","z":"c04e9d3d.431e8","name":"Start the transition","props":[{"p":"topic","vt":"str"},{"p":"brightness_start","v":"1","vt":"num"},{"p":"brightness_end","v":"255","vt":"num"},{"p":"transition_time","v":"30","vt":"num"}],"repeat":"","crontab":"","once":false,"onceDelay":0.1,"topic":"light.my_light","x":1030,"y":520,"wires":[["45bb3b2993552884"]]},{"id":"f7a728f0679e8366","type":"debug","z":"c04e9d3d.431e8","name":"Transition debug messages","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","statusVal":"","statusType":"auto","x":1520,"y":540,"wires":[]},{"id":"50fcc7c5bf0da81c","type":"debug","z":"c04e9d3d.431e8","name":"Transition complete or cancelled","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","statusVal":"","statusType":"auto","x":1530,"y":500,"wires":[]},{"id":"62882ce9b958f886","type":"inject","z":"c04e9d3d.431e8","name":"Force the transition to finish","props":[{"p":"payload"}],"repeat":"","crontab":"","once":false,"onceDelay":0.1,"topic":"","payload":"finish","payloadType":"str","x":1000,"y":580,"wires":[["45bb3b2993552884"]]},{"id":"74621b3d62b46d20","type":"inject","z":"c04e9d3d.431e8","name":"Cancel the transition as-is","props":[{"p":"payload"}],"repeat":"","crontab":"","once":false,"onceDelay":0.1,"topic":"","payload":"cancel","payloadType":"str","x":1010,"y":640,"wires":[["45bb3b2993552884"]]},{"id":"45bb3b2993552884","type":"lighttransition","z":"c04e9d3d.431e8","name":"","show_progress":true,"send_progress":false,"x":1260,"y":520,"wires":[["50fcc7c5bf0da81c"],["f7a728f0679e8366"]]}]
+[
+    {
+        "id": "0e4c90221aaaf5a9",
+        "type": "inject",
+        "z": "c04e9d3d.431e8",
+        "name": "Start the transition",
+        "props": [
+            {
+                "p": "topic",
+                "vt": "str"
+            },
+            {
+                "p": "brightness_start",
+                "v": "1",
+                "vt": "num"
+            },
+            {
+                "p": "brightness_end",
+                "v": "255",
+                "vt": "num"
+            },
+            {
+                "p": "transition_time",
+                "v": "30",
+                "vt": "num"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "light.sitting_room_lamp",
+        "x": 1030,
+        "y": 520,
+        "wires": [
+            [
+                "d78739423144f50a"
+            ]
+        ]
+    },
+    {
+        "id": "50fcc7c5bf0da81c",
+        "type": "debug",
+        "z": "c04e9d3d.431e8",
+        "name": "End of transition",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1480,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "62882ce9b958f886",
+        "type": "inject",
+        "z": "c04e9d3d.431e8",
+        "name": "Force the transition to finish",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "finish",
+        "payloadType": "str",
+        "x": 1000,
+        "y": 580,
+        "wires": [
+            [
+                "d78739423144f50a"
+            ]
+        ]
+    },
+    {
+        "id": "74621b3d62b46d20",
+        "type": "inject",
+        "z": "c04e9d3d.431e8",
+        "name": "Cancel the transition as-is",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "cancel",
+        "payloadType": "str",
+        "x": 1010,
+        "y": 640,
+        "wires": [
+            [
+                "d78739423144f50a"
+            ]
+        ]
+    },
+    {
+        "id": "032e33ef3d45e13d",
+        "type": "api-call-service",
+        "z": "c04e9d3d.431e8",
+        "name": "Call service node",
+        "server": "58215890.7c8288",
+        "version": 5,
+        "debugenabled": false,
+        "domain": "{{call_service_domain}}",
+        "service": "{{call_service_service}}",
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "{{call_service_entity}}"
+        ],
+        "data": "call_service_data",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "x": 1490,
+        "y": 560,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d78739423144f50a",
+        "type": "ha-light-transition",
+        "z": "c04e9d3d.431e8",
+        "name": "",
+        "show_progress": true,
+        "send_progress": false,
+        "x": 1260,
+        "y": 520,
+        "wires": [
+            [
+                "50fcc7c5bf0da81c"
+            ],
+            [
+                "032e33ef3d45e13d"
+            ]
+        ]
+    },
+    {
+        "id": "58215890.7c8288",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 5,
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": "y|yes|true|on|home|open",
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": "at: ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "h23",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": true
+    }
+]
+
