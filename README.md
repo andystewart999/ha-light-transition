@@ -5,7 +5,7 @@ messages in a loop through the second output, calculating the appropiate brightn
 Once the transition is complete or is cancelled, the original message will be sent through 
 the first output.
 
-When adding this node to your flow you must also add an `api_call_service` node to the second output, with the specific
+When adding this node to your flow you must also add a `call service` node to the second output, with the specific
 configuration detailed below.
 
 # Input Message to start a transition
@@ -28,10 +28,10 @@ There are also two other control messages which the  node will accept:
 + a `msg.payload` of `finish` will immediately set the target light(s) to the `msg.brightness_end` value, effectively jumping to the end of the transition
 
 # Home Assistant note
-The original release of this node contained the Home Assistant `api_call_service` node within it.  This meant that it didn't work for anyone other than me
+The original release of this node contained the Home Assistant `call service` node within it.  This meant that it didn't work for anyone other than me
 as Node Red doesn't appear to support importing your own Home Assistant configuration node when adding a subflow-derived module to your flows.
 
-That is the reason why this node requires you to attach an `api_call_service` node to the second output with this specific configuration:
+That is the reason why this node requires you to attach a `call service` node to the second output with this specific configuration:
 
 + domain: `{{call_service_domain}}`
 + service: `{{call_service_service}}`
