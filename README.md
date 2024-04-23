@@ -38,3 +38,8 @@ That is the reason why this node requires you to attach an `api_call_service` no
 + entityId: `{{call_service_entity}}`
 + data: `call_service_data`
 + dataType: `jsonata`
+
+Or you can import this flow JSON:
+```
+[{"id":"032e33ef3d45e13d","type":"api-call-service","z":"c04e9d3d.431e8","name":"Set light state","server":"58215890.7c8288","version":5,"debugenabled":false,"domain":"{{call_service_domain}}","service":"{{call_service_service}}","areaId":[],"deviceId":[],"entityId":["{{call_service_entity}}"],"data":"call_service_data","dataType":"jsonata","mergeContext":"","mustacheAltTags":false,"outputProperties":[],"queue":"none","x":1490,"y":600,"wires":[[]]}]
+```
